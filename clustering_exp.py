@@ -1,14 +1,14 @@
+from turtledemo.penrose import start
+
 import pandas as pd
 import nltk
 from nltk.tokenize import word_tokenize
 from gensim.models import Word2Vec
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_recall_fscore_support
 from sklearn.cluster import KMeans
-import numpy as np
-from sklearn.metrics.pairwise import cosine_distances
 import time
-import multiprocessing
+
+start = time.time()
 # Load IMDb dataset (make sure it's preprocessed)
 file_path = "datasets/imdb_reviews_cleaned.csv"  # Update the file path if needed
 df = pd.read_csv(file_path)
@@ -17,9 +17,6 @@ df = pd.read_csv(file_path)
 nltk.download('punkt')
 df['tokenized_review'] = df['cleaned_review'].apply(lambda x: word_tokenize(str(x).lower()))
 
-# Display sample data
-print(df[['tokenized_review', 'sentiment']].head())
-
 
 # Train Word2Vec model
 word2vec_model = Word2Vec(sentences=df['tokenized_review'], vector_size=100, window=5, min_count=15, workers=4)
@@ -27,71 +24,99 @@ word2vec_model = Word2Vec(sentences=df['tokenized_review'], vector_size=100, win
 # Save model for later use
 word2vec_model.save("word2vec_imdb.model")
 
-# Print most similar words to "great"
-print(word2vec_model.wv.most_similar("great", topn=10))
-
-# Check words most similar to "terrible"
-print(word2vec_model.wv.most_similar("terrible", topn=10))
-
 # Load trained Word2Vec model
 w2v_model = Word2Vec.load("word2vec_imdb.model")
 
 # Extract word vectors for clustering
 word_vectors = Word2Vec.load("word2vec_imdb.model").wv
 
+# ✅ Initialize accumulators for metrics
+num_runs = 10
+total_accuracy = 0
+total_precision = 0
+total_recall = 0
+total_f1 = 0
+total_miss = 0
 
-# Apply k-Means with precomputed cosine distances
-kmeans = KMeans(n_clusters=10, random_state=42, n_init=20)
-kmeans.fit(word_vectors.vectors)
+# Define classification function ONCE (before loop)
+def classify_review_kmeans(review, true_label, word_clusters):
+    words = word_tokenize(review.lower())
 
-# # Assign clusters to words
-# word_clusters = {word: kmeans.labels_[i] for i, word in enumerate(word_list)}
+    # Ensure "great" and "unoriginal" exist in clusters
+    if "great" not in word_clusters or "unoriginal" not in word_clusters:
+        return "Miss"
 
-# Print sample words per cluster
-for cluster in range(10):
-    print(word_vectors.similar_by_vector(kmeans.cluster_centers_[cluster], topn=10, restrict_vocab=None))
+    # Count words from "Positive" and "Negative" clusters
+    pos_count = sum(1 for word in words if word_clusters.get(word, -1) == word_clusters["great"])
+    neg_count = sum(1 for word in words if word_clusters.get(word, -1) == word_clusters["unoriginal"])
 
-# # Load IMDb dataset (make sure it's preprocessed)
-# file_path = "datasets/imdb_reviews_cleaned.csv"  # Update the file path if needed
-# df = pd.read_csv(file_path)
-#
-# # Tokenize reviews
-# nltk.download('punkt')
-# df['tokenized_review'] = df['cleaned_review'].apply(lambda x: word_tokenize(str(x).lower()))
-#
-# # Display sample data
-# print(df[['tokenized_review', 'sentiment']].head())
-#
-#
-#
-# # Train Word2Vec model
-# word2vec_model = Word2Vec(
-#     sentences=df['tokenized_review'],  # Use cleaned corpus
-#     vector_size=200,  # Reduce embedding size to focus on key features
-#     window=5,  # Larger context window to understand word relationships
-#     min_count=10,  # Ignore words that appear < 5 times (removes rare noisy words)
-#     sample=1e-3,  # Subsampling for frequent words (reduces noise)
-#     sg=1,  # Use Skip-gram (better for rare words)
-#     negative=10,  # Negative sampling to improve word similarity
-#     workers=multiprocessing.cpu_count() - 1,  # Use all available CPU cores
-#     epochs=20  # More epochs to stabilize training
-# )
-#
-#
-# # Save model for later use
-# word2vec_model.save("word2vec_imdb.model")
-#
-# word_vectors = Word2Vec.load("word2vec_imdb.model").wv
-# model = KMeans(n_clusters=3, max_iter=1000, random_state=True, n_init=50).fit(X=word_vectors.vectors)
-# positive_cluster_center = model.cluster_centers_[0]
-# negative_cluster_center = model.cluster_centers_[1]
-# print(word_vectors.similar_by_vector(model.cluster_centers_[0], topn=10, restrict_vocab=None))
-# print(word_vectors.similar_by_vector(model.cluster_centers_[1], topn=10, restrict_vocab=None))
-# print(word_vectors.similar_by_vector(model.cluster_centers_[2], topn=10, restrict_vocab=None))
-#
-#
-#
-# print(word2vec_model.wv.most_similar("great", topn=10))
-#
-# # Check words most similar to "terrible"
-# print(word2vec_model.wv.most_similar("terrible", topn=10))
+    # Classification logic
+    if pos_count > neg_count:
+        return "Positive"
+    elif pos_count < neg_count:
+        return "Negative"
+    else:
+        return "Miss"
+
+# Convert sentiment labels to strings
+df['sentiment'] = df['sentiment'].map({1: "Positive", 0: "Negative"})
+
+for i in range(num_runs):
+    print(f"\n Run {i + 1}/{num_runs}...")
+
+    # Apply k-Means clustering
+    kmeans = KMeans(n_clusters=15, n_init=50)
+    kmeans.fit(word_vectors.vectors)
+
+    word_list = word2vec_model.wv.index_to_key
+    word_clusters = {word: kmeans.labels_[i] for i, word in enumerate(word_list)}
+
+    # Apply classification function to reviews
+    df['predicted_sentiment'] = df.apply(lambda row: classify_review_kmeans(row['cleaned_review'], row['sentiment'], word_clusters), axis=1)
+
+    # Filter out "Miss" cases
+    df_filtered = df[df['predicted_sentiment'] != "Miss"]
+
+    if df_filtered.empty:  # Skip if there are no valid predictions
+        print(f"Run {i+1} - No valid predictions, skipping...")
+        continue
+
+    # Compute accuracy
+    accuracy = accuracy_score(df_filtered['sentiment'], df_filtered['predicted_sentiment'])
+    total_accuracy += accuracy
+
+    # Compute precision, recall, and F1-score
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        df_filtered['sentiment'], df_filtered['predicted_sentiment'], average='weighted', zero_division=1
+    )
+    total_precision += precision
+    total_recall += recall
+    total_f1 += f1
+
+    # Compute Miss Rate
+    miss_count = (df['predicted_sentiment'] == "Miss").sum()
+    total_reviews = len(df)
+    miss_rate = miss_count / total_reviews
+    total_miss += miss_rate
+
+    print(f"Run {i+1} - Accuracy: {accuracy:.4f}, Miss Rate: {miss_rate:.4%}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}")
+
+# Compute Average Results
+num_valid_runs = num_runs  # Adjust in case some runs were skipped
+
+avg_accuracy = total_accuracy / num_valid_runs
+avg_precision = total_precision / num_valid_runs
+avg_recall = total_recall / num_valid_runs
+avg_f1 = total_f1 / num_valid_runs
+avg_miss_rate = total_miss / num_valid_runs
+
+# Print Final Summary
+print("\n Final Average Results Over Multiple Runs:")
+print(f"Average Accuracy: {avg_accuracy:.2f}")
+print(f"Average Miss Rate: {avg_miss_rate:.2%}")
+print(f"Average Precision: {avg_precision:.2f}")
+print(f"Average Recall: {avg_recall:.2f}")
+print(f"Average F1-Score: {avg_f1:.2f}")
+
+end = time.time()
+print(end - start)
