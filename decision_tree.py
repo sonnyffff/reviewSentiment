@@ -37,9 +37,12 @@ def train_decision_tree(X_train, X_test, y_train, y_test):
     plt.figure(figsize=(20, 10))
     feature_names = vectorizer.get_feature_names_out()
     class_names = ['negative', 'positive']
+    y_train_pred = clf.predict(X_train)
+    train_accuracy = accuracy_score(y_train, y_train_pred)
+    print(f"Training Accuracy: {train_accuracy}")
 
-    tree.plot_tree(clf, filled=True, feature_names=feature_names, class_names=class_names, rounded=True)
-    plt.show()
+    # tree.plot_tree(clf, filled=True, feature_names=feature_names, class_names=class_names, rounded=True)
+    # plt.show()
 
     # Evaluate the model
     accuracy = accuracy_score(y_test, y_pred)
@@ -87,5 +90,5 @@ def train_decision_tree_finetuned(X_train, X_test, y_train, y_test):
 
 
 # Run both models
-# train_decision_tree(X_train, X_test, y_train, y_test)
+train_decision_tree(X_train, X_test, y_train, y_test)
 # train_decision_tree_finetuned(X_train, X_test, y_train, y_test)
