@@ -1,11 +1,12 @@
-from turtledemo.penrose import start
-
 import pandas as pd
 import nltk
+from matplotlib import pyplot as plt
 from nltk.tokenize import word_tokenize
 from gensim.models import Word2Vec
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, precision_recall_fscore_support
 from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from collections import Counter
 import time
 
 start = time.time()
@@ -17,9 +18,11 @@ df = pd.read_csv(file_path)
 nltk.download('punkt')
 df['tokenized_review'] = df['cleaned_review'].apply(lambda x: word_tokenize(str(x).lower()))
 
+# Convert sentiment labels to strings
+df['sentiment'] = df['sentiment'].map({1: "Positive", 0: "Negative"})
 
 # Train Word2Vec model
-word2vec_model = Word2Vec(sentences=df['tokenized_review'], vector_size=100, window=5, min_count=15, workers=4)
+word2vec_model = Word2Vec(sentences=df['tokenized_review'], vector_size=100, window=5, min_count=30, workers=4)
 
 # Save model for later use
 word2vec_model.save("word2vec_imdb.model")
@@ -31,7 +34,7 @@ w2v_model = Word2Vec.load("word2vec_imdb.model")
 word_vectors = Word2Vec.load("word2vec_imdb.model").wv
 
 # ✅ Initialize accumulators for metrics
-num_runs = 10
+num_runs = 1
 total_accuracy = 0
 total_precision = 0
 total_recall = 0
@@ -58,18 +61,48 @@ def classify_review_kmeans(review, true_label, word_clusters):
     else:
         return "Miss"
 
-# Convert sentiment labels to strings
-df['sentiment'] = df['sentiment'].map({1: "Positive", 0: "Negative"})
 
 for i in range(num_runs):
     print(f"\n Run {i + 1}/{num_runs}...")
 
+    num_clusters = 10
     # Apply k-Means clustering
-    kmeans = KMeans(n_clusters=15, n_init=50)
+    kmeans = KMeans(n_clusters=num_clusters, n_init=50)
     kmeans.fit(word_vectors.vectors)
 
     word_list = word2vec_model.wv.index_to_key
     word_clusters = {word: kmeans.labels_[i] for i, word in enumerate(word_list)}
+
+    ###
+    # cluster_counts = Counter(kmeans.labels_)
+    # for cluster_id in cluster_counts.keys():
+    #     print(f"\nSample words in Cluster {cluster_id}:")
+    #     words_in_cluster = [word for word, lbl in word_clusters.items() if lbl == cluster_id]
+    #     print(words_in_cluster[:20])  # Print first 20 words
+    #
+    # word_vectors_reduced = PCA(n_components=2).fit_transform(word_vectors.vectors[:1000])  # Reduce to 2D for plotting
+    # import pandas as pd
+    # import seaborn as sns
+    #
+    # df_visual = pd.DataFrame(word_vectors_reduced, columns=["PCA 1", "PCA 2"])
+    # df_visual["Word"] = word_list
+    # df_visual["Cluster"] = kmeans.labels_[:1000]
+    #
+    # # Plot the clusters
+    # plt.figure(figsize=(10, 7))
+    # sns.scatterplot(data=df_visual, x="PCA 1", y="PCA 2", hue="Cluster", palette="tab10", s=100, edgecolor="black")
+    #
+    # # Annotate words in the scatter plot
+    # for i, word in enumerate(df_visual["Word"]):
+    #     plt.annotate(word, (df_visual["PCA 1"][i], df_visual["PCA 2"][i]), fontsize=9, alpha=0.75)
+    #
+    # plt.title("K-Means Clustering of Word Embeddings (Word2Vec)")
+    # plt.xlabel("PCA Component 1")
+    # plt.ylabel("PCA Component 2")
+    # plt.legend(title="Cluster")
+    # plt.grid(True)
+    # plt.show()
+    ###
 
     # Apply classification function to reviews
     df['predicted_sentiment'] = df.apply(lambda row: classify_review_kmeans(row['cleaned_review'], row['sentiment'], word_clusters), axis=1)
