@@ -117,7 +117,7 @@ class DecisionTree:
 if __name__ == "__main__":
     start = time.time()
     # Load the preprocessed dataset
-    file_path = "datasets/imdb_reviews_cleaned.csv"  # Ensure the correct path
+    file_path = "datasets/imdb_reviews_cleaned.csv"
 
     df = pd.read_csv(file_path)
 

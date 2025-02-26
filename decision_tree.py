@@ -5,13 +5,13 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 
+
 # Load preprocessed dataset
-file_path = "datasets/imdb_reviews_cleaned.csv"  # Ensure the correct path
+file_path = "datasets/imdb_reviews_cleaned.csv"
 df = pd.read_csv(file_path)
 
 # Convert text data into numerical format using TF-IDF
 vectorizer = TfidfVectorizer(max_features=2000)  # Limit vocab size for efficiency
-# X = vectorizer.fit_transform(df['cleaned_review']).toarray()  # Convert to array
 X = vectorizer.fit_transform(df['cleaned_review']) # Sparse Matrix
 
 # Target variable (sentiment: 1 = positive, 0 = negative)
@@ -19,7 +19,6 @@ y = df['sentiment']
 
 # Split data into training (80%) and testing (20%)
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
 
 
 def train_decision_tree(X_train, X_test, y_train, y_test):
@@ -45,7 +44,7 @@ def train_decision_tree(X_train, X_test, y_train, y_test):
 
     # Evaluate the model
     accuracy = accuracy_score(y_test, y_pred)
-    print(f"Decision Tree Accuracy (Without Tuning): {accuracy:.4f}")
+    print(f"Decision Tree Accuracy: {accuracy:.4f}")
     print("\nClassification Report:\n", classification_report(y_test, y_pred))
 
 
@@ -69,9 +68,7 @@ def train_decision_tree_finetuned(X_train, X_test, y_train, y_test):
     # Use GridSearchCV to find the best parameters
     grid_search = GridSearchCV(clf, param_grid, cv=5, scoring='accuracy', n_jobs=-1, verbose=2)
 
-
     grid_search.fit(X_train, y_train)
-
 
     # Best parameters and model
     best_params = grid_search.best_params_
@@ -87,7 +84,4 @@ def train_decision_tree_finetuned(X_train, X_test, y_train, y_test):
     print(f"Optimized Decision Tree Accuracy: {accuracy:.4f}")
     print("\nClassification Report:\n", classification_report(y_test, y_pred))
 
-
-# Run both models
 train_decision_tree(X_train, X_test, y_train, y_test)
-# train_decision_tree_finetuned(X_train, X_test, y_train, y_test)

@@ -15,7 +15,7 @@ nltk.download('punkt')
 nltk.download('wordnet')
 
 # Load the dataset (Assuming the CSV has 'review' and 'sentiment' columns)
-file_path = "datasets/IMDB Dataset.csv"  # Change this to your actual file path
+file_path = "datasets/IMDB Dataset.csv"
 df = pd.read_csv(file_path)
 
 # Convert sentiment labels to binary (0 = negative, 1 = positive)
@@ -36,9 +36,6 @@ def clean_text(text):
 
 # Apply cleaning function to reviews
 df['cleaned_review'] = df['review'].apply(clean_text)
-
-# Display sample processed data
-print(df[['cleaned_review', 'sentiment']].head())
 
 # Save the processed data
 df.to_csv("datasets/imdb_reviews_cleaned.csv", index=False)

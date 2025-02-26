@@ -9,6 +9,7 @@ from sklearn.decomposition import PCA
 from collections import Counter
 import time
 
+
 start = time.time()
 # Load IMDb dataset (make sure it's preprocessed)
 file_path = "datasets/imdb_reviews_cleaned.csv"  # Update the file path if needed
